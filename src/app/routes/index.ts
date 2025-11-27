@@ -1,69 +1,78 @@
 import express from 'express';
-import { userRoutes } from '../modules/user/user.route';
-import { authRoutes } from '../modules/auth/auth.routes';
-import { SchedulesRoutes } from '../modules/schedule/schedule.routes';
-
-import { SpecialtiesRoutes } from '../modules/specialties/specialties.routes';
-import { DoctorRoutes } from '../modules/doctor/doctor.routes';
-import { AppointmentRoutes } from '../modules/appointment/appointmnet.routes';
-import { PrescriptionRoutes } from '../modules/prescription/prescription.routes';
-import { ReviewRoutes } from '../modules/review/review.routes';
-import { PatientRoutes } from '../modules/patient/patient.routes';
-import { doctorScheduleRoutes } from '../modules/doctorSchedule/doctorSchedule.route';
-import { MetaRoutes } from '../modules/meta/meta.routes';
-
-
+import { userRoutes } from '../modules/User/user.routes';
+import { AdminRoutes } from '../modules/Admin/admin.routes';
+import { AuthRoutes } from '../modules/Auth/auth.routes';
+import { SpecialtiesRoutes } from '../modules/Specialties/specialties.routes';
+import { DoctorRoutes } from '../modules/Doctor/doctor.routes';
+import { PatientRoutes } from '../modules/Patient/patient.route';
+import { ScheduleRoutes } from '../modules/Schedule/schedule.routes';
+import { DoctorScheduleRoutes } from '../modules/DoctorSchedule/doctorSchedule.routes';
+import { AppointmentRoutes } from '../modules/Appointment/appointment.routes';
+import { PaymentRoutes } from '../modules/Payment/payment.routes';
+import { PrescriptionRoutes } from '../modules/Prescription/prescription.routes';
+import { ReviewRoutes } from '../modules/Review/review.routes';
+import { MetaRoutes } from '../modules/Meta/meta.routes';
+import { apiLimiter } from '../middlewares/rateLimiter';
 
 const router = express.Router();
 
+
+
+router.use(apiLimiter); // Apply to all routes
+
 const moduleRoutes = [
- 
     {
         path: '/user',
         route: userRoutes
     },
- 
+    {
+        path: '/admin',
+        route: AdminRoutes
+    },
     {
         path: '/auth',
-        route: authRoutes
-    },
- 
-    {
-        path: '/schedule',
-        route: SchedulesRoutes
+        route: AuthRoutes
     },
     {
-        path: '/doctor-schedule',
-        route:doctorScheduleRoutes 
-    },
-    {
-          path: '/specialties',
+        path: '/specialties',
         route: SpecialtiesRoutes
     },
     {
-          path: '/doctor',
+        path: '/doctor',
         route: DoctorRoutes
     },
     {
-          path: '/appointment',
+        path: '/patient',
+        route: PatientRoutes
+    },
+    {
+        path: '/schedule',
+        route: ScheduleRoutes
+    },
+    {
+        path: '/doctor-schedule',
+        route: DoctorScheduleRoutes
+    },
+    {
+        path: '/appointment',
         route: AppointmentRoutes
     },
     {
-          path: '/prescription',
+        path: '/payment',
+        route: PaymentRoutes
+    },
+    {
+        path: '/prescription',
         route: PrescriptionRoutes
     },
     {
-          path: '/review',
+        path: '/review',
         route: ReviewRoutes
     },
     {
-          path: '/patient',
-        route:PatientRoutes
-    },
-    {
-          path: '/metadata',
-        route:MetaRoutes
-    },
+        path: '/meta',
+        route: MetaRoutes
+    }
 ];
 
 moduleRoutes.forEach(route => router.use(route.path, route.route))

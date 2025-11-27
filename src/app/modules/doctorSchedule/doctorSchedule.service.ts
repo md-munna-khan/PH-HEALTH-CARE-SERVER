@@ -1,11 +1,13 @@
 import { Prisma } from "@prisma/client";
-import { IOptions, paginationHelper } from "../../helper/paginationHelper";
-import { prisma } from "../../shared/prisma";
-import { IJWTPayload } from "../../types/common";
+import { paginationHelper } from "../../../helpers/paginationHelper";
+import prisma from "../../../shared/prisma";
+import { IAuthUser } from "../../interfaces/common";
+import { IPaginationOptions } from "../../interfaces/pagination";
 import ApiError from "../../errors/ApiError";
-import httpStatus from 'http-status'
+import httpStatus from "http-status";
+import { IDoctorScheduleFilterRequest } from "./doctorSchedule.interface";
 
-const insertIntoDB = async (user: IJWTPayload, payload: {
+const insertIntoDB = async (user: any, payload: {
     scheduleIds: string[]
 }) => {
     const doctorData = await prisma.doctor.findUniqueOrThrow({
@@ -19,15 +21,18 @@ const insertIntoDB = async (user: IJWTPayload, payload: {
         scheduleId
     }))
 
-    return await prisma.doctorSchedules.createMany({
+    const result = await prisma.doctorSchedules.createMany({
         data: doctorScheduleData
     });
-}
+
+    return result;
+};
+
 
 const getMySchedule = async (
     filters: any,
-    options: IOptions,
-    user: IJWTPayload
+    options: IPaginationOptions,
+    user: IAuthUser
 ) => {
     const { limit, page, skip } = paginationHelper.calculatePagination(options);
     const { startDate, endDate, ...filterData } = filters;
@@ -105,7 +110,7 @@ const getMySchedule = async (
     };
 };
 
-const deleteFromDB = async (user: IJWTPayload, scheduleId: string) => {
+const deleteFromDB = async (user: IAuthUser, scheduleId: string) => {
 
     const doctorData = await prisma.doctor.findUniqueOrThrow({
         where: {
@@ -138,8 +143,8 @@ const deleteFromDB = async (user: IJWTPayload, scheduleId: string) => {
 }
 
 const getAllFromDB = async (
-    filters: any,
-    options: IOptions,
+    filters: IDoctorScheduleFilterRequest,
+    options: IPaginationOptions,
 ) => {
     const { limit, page, skip } = paginationHelper.calculatePagination(options);
     const { searchTerm, ...filterData } = filters;
@@ -204,7 +209,7 @@ const getAllFromDB = async (
 
 export const DoctorScheduleService = {
     insertIntoDB,
-    getAllFromDB,
     getMySchedule,
-    deleteFromDB
+    deleteFromDB,
+    getAllFromDB
 }
