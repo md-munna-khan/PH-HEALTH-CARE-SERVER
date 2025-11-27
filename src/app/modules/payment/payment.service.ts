@@ -1,97 +1,123 @@
-// Import the Stripe SDK to work with Stripe events and sessions
-import Stripe from "stripe";
+import Stripe from 'stripe';
+import prisma from '../../../shared/prisma';
+import { SSLService } from '../SSL/ssl.service';
+import { PaymentStatus } from '@prisma/client';
 
-// Import your Prisma client instance to perform database operations
-import { prisma } from "../../shared/prisma";
+const initPayment = async (appointmentId: string) => {
+    const paymentData = await prisma.payment.findFirstOrThrow({
+        where: {
+            appointmentId
+        },
+        include: {
+            appointment: {
+                include: {
+                    patient: true
+                }
+            }
+        }
+    });
 
-// Import your enum (from Prisma schema) to store standardized payment status values
-import { PaymentStatus } from "@prisma/client";
+    const initPaymentData = {
+        amount: paymentData.amount,
+        transactionId: paymentData.transactionId,
+        name: paymentData.appointment.patient.name,
+        email: paymentData.appointment.patient.email,
+        address: paymentData.appointment.patient.address,
+        phoneNumber: paymentData.appointment.patient.contactNumber
+    }
 
-/**
- * Handles all incoming Stripe webhook events.
- * 
- * Webhooks are sent by Stripe whenever an important event happens,
- * e.g. when a checkout session is completed, payment fails, etc.
- * 
- * This function receives a single event object from Stripe and
- * performs corresponding database updates depending on the event type.
- */
+    const result = await SSLService.initPayment(initPaymentData);
+    return {
+        paymentUrl: result.GatewayPageURL
+    };
+
+};
+
+// ssl commerz ipn listener query
+// amount=1150.00&bank_tran_id=151114130739MqCBNx5&card_brand=VISA&card_issuer=BRAC+BANK%2C+LTD.&card_issuer_country=Bangladesh&card_issuer_country_code=BD&card_no=432149XXXXXX0667&card_type=VISA-Brac+bank¤cy=BDT&status=VALID&store_amount=1104.00&store_id=progr6606bdd704623&tran_date=2015-11-14+13%3A07%3A12&tran_id=5646dd9d4b484&val_id=151114130742Bj94IBUk4uE5GRj&verify_sign=490d86b8ac5faa016f695b60972a7fac&verify_key=amount%2Cbank_tran_id%2Ccard_brand%2Ccard_issuer%2Ccard_issuer_country%2Ccard_issuer_country_code%2Ccard_no%2Ccard_type%2Ccurrency%2Cstatus%2Cstore_amount%2Cstore_id%2Ctran_date%2Ctran_id%2Cval_id
+
+const validatePayment = async (payload: any) => {
+    // if (!payload || !payload.status || !(payload.status === 'VALID')) {
+    //     return {
+    //         message: "Invalid Payment!"
+    //     }
+    // }
+
+    // const response = await SSLService.validatePayment(payload);
+
+    // if (response?.status !== 'VALID') {
+    //     return {
+    //         message: "Payment Failed!"
+    //     }
+    // }
+
+    const response = payload;
+
+    await prisma.$transaction(async (tx) => {
+        const updatedPaymentData = await tx.payment.update({
+            where: {
+                transactionId: response.tran_id
+            },
+            data: {
+                status: PaymentStatus.PAID,
+                paymentGatewayData: response
+            }
+        });
+
+        await tx.appointment.update({
+            where: {
+                id: updatedPaymentData.appointmentId
+            },
+            data: {
+                paymentStatus: PaymentStatus.PAID
+            }
+        })
+    });
+
+    return {
+        message: "Payment success!"
+    }
+
+}
+
+
 const handleStripeWebhookEvent = async (event: Stripe.Event) => {
-    // The event type indicates what kind of event occurred.
-    // For example: "checkout.session.completed", "payment_intent.succeeded", etc.
     switch (event.type) {
-
-        /**
-         * Event: checkout.session.completed
-         * 
-         * This event is triggered when a Checkout Session has successfully completed,
-         * meaning the user has paid successfully or the payment has been authorized.
-         */
         case "checkout.session.completed": {
-            // The `data.object` property contains the full Stripe session object.
-            // We cast it to `any` here because Stripe's generic type can be complex
-            // and we specifically know this event relates to a Checkout Session.
             const session = event.data.object as any;
 
-            // Retrieve the custom metadata you attached when creating the Checkout Session.
-            // These IDs allow you to connect Stripe events back to your internal database records.
             const appointmentId = session.metadata?.appointmentId;
             const paymentId = session.metadata?.paymentId;
 
-            // 🧾 Update the Appointment record in your database:
-            // - Find the appointment by ID (from metadata)
-            // - Update its paymentStatus field depending on Stripe's payment status
             await prisma.appointment.update({
                 where: {
-                    id: appointmentId,
+                    id: appointmentId
                 },
                 data: {
-                    // Stripe session.payment_status is usually 'paid' or 'unpaid'
-                    paymentStatus:
-                        session.payment_status === "paid" ? PaymentStatus.PAID: PaymentStatus.UNPAID,
-                },
-            });
+                    paymentStatus: session.payment_status === "paid" ? PaymentStatus.PAID : PaymentStatus.UNPAID
+                }
+            })
 
-            // 💰 Update the Payment record in your database:
-            // - Find the payment by ID (from metadata)
-            // - Store Stripe's payment data for future reference
-            // - Update the status field similarly to match Stripe's payment result
             await prisma.payment.update({
                 where: {
-                    id: paymentId,
+                    id: paymentId
                 },
                 data: {
-                    status:
-                        session.payment_status === "paid" ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+                    status: session.payment_status === "paid" ? PaymentStatus.PAID : PaymentStatus.UNPAID,
+                    paymentGatewayData: session
+                }
+            })
 
-                    // Save the entire Stripe session object for debugging,
-                    // reconciliation, or refund processing in the future.
-                    paymentGatewayData: session,
-                },
-            });
-
-            // Break so no other event handler runs for this event
             break;
         }
 
-        /**
-         * Default handler for any other Stripe event types
-         * that your system does not explicitly process.
-         * 
-         * Keeping this ensures your app logs unhandled events
-         * so you can decide later if they need to be supported.
-         */
         default:
             console.log(`ℹ️ Unhandled event type: ${event.type}`);
     }
 };
 
-/**
- * Exported PaymentService object — a simple pattern
- * that keeps all payment-related logic grouped together.
- */
 export const PaymentService = {
-    handleStripeWebhookEvent,
-};
-
-
+    initPayment,
+    validatePayment,
+    handleStripeWebhookEvent
+}
