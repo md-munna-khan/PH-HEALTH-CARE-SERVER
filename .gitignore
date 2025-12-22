@@ -5,3 +5,10 @@ node_modules
 /generated/prisma
 
 .vercel
+
+dist/
+.env
+.env.local
+uploads/*
+!uploads/.gitkeep
+*.log
